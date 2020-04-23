@@ -2,6 +2,83 @@
 -- and the EPL 1.0 (http://h2database.com/html/license.html).
 -- Initial Developer: H2 Group
 --
+-- INT-2835 test case
+create table application(id varchar(50) not null, appName varchar(40), constraint app_pk primary key (id));
+> ok
+
+create table pull_request(id varchar(50) not null, appId varchar(50) not null, prId int not null, constraint pr_pk primary key (id), constraint app_fk foreign key(appId) references application(id), constraint source_control_pull_request_app_component_pull_request_uk unique (appId, prId));
+> ok
+
+insert into application (id, appName) values ('1', 'app1'), ('2', 'app2'), ('3', 'app3');
+> update count: 3
+
+insert into pull_request (id, appId, prId) values ('1', '1', 1);
+> update count: 1
+
+select count(*) as apps from application;
+> APPS
+> ----
+> 3
+
+select count(*) as apps from application where id = '1';
+> APPS
+> ----
+> 1
+
+select count(*) as prs from pull_request;
+> PRS
+> ---
+> 1
+
+select * from pull_request where appId = '1';
+> ID APPID PRID
+> -- ----- ----
+> 1  1     1
+
+select table_name, index_name from information_schema.indexes;
+> TABLE_NAME   INDEX_NAME
+> ------------ -----------------------------------------------------------------
+> APPLICATION  PRIMARY_KEY_D
+> PULL_REQUEST APP_FK_INDEX_5
+> PULL_REQUEST PRIMARY_KEY_5
+> PULL_REQUEST SOURCE_CONTROL_PULL_REQUEST_APP_COMPONENT_PULL_REQUEST_UK_INDEX_5
+> PULL_REQUEST SOURCE_CONTROL_PULL_REQUEST_APP_COMPONENT_PULL_REQUEST_UK_INDEX_5
+> rows: 5
+
+alter table pull_request drop constraint source_control_pull_request_app_component_pull_request_uk;
+> ok
+
+select table_name, index_name from information_schema.indexes;
+> TABLE_NAME   INDEX_NAME
+> ------------ --------------
+> APPLICATION  PRIMARY_KEY_D
+> PULL_REQUEST APP_FK_INDEX_5
+> PULL_REQUEST PRIMARY_KEY_5
+> rows: 3
+
+script SIMPLE NOPASSWORDS NOSETTINGS BLOCKSIZE 10000000;
+> SCRIPT
+> --------------------------------------------------------------------------------------------------------------------------
+> -- 1 +/- SELECT COUNT(*) FROM PUBLIC.PULL_REQUEST;
+> -- 3 +/- SELECT COUNT(*) FROM PUBLIC.APPLICATION;
+> ALTER TABLE PUBLIC.APPLICATION ADD CONSTRAINT PUBLIC.APP_PK PRIMARY KEY(ID);
+> ALTER TABLE PUBLIC.PULL_REQUEST ADD CONSTRAINT PUBLIC.APP_FK FOREIGN KEY(APPID) REFERENCES PUBLIC.APPLICATION(ID) NOCHECK;
+> ALTER TABLE PUBLIC.PULL_REQUEST ADD CONSTRAINT PUBLIC.PR_PK PRIMARY KEY(ID);
+> CREATE MEMORY TABLE PUBLIC.APPLICATION( ID VARCHAR(50) NOT NULL, APPNAME VARCHAR(40) );
+> CREATE MEMORY TABLE PUBLIC.PULL_REQUEST( ID VARCHAR(50) NOT NULL, APPID VARCHAR(50) NOT NULL, PRID INT NOT NULL );
+> CREATE USER IF NOT EXISTS SA PASSWORD '' ADMIN;
+> INSERT INTO PUBLIC.APPLICATION(ID, APPNAME) VALUES('1', 'app1');
+> INSERT INTO PUBLIC.APPLICATION(ID, APPNAME) VALUES('2', 'app2');
+> INSERT INTO PUBLIC.APPLICATION(ID, APPNAME) VALUES('3', 'app3');
+> INSERT INTO PUBLIC.PULL_REQUEST(ID, APPID, PRID) VALUES('1', '1', 1);
+> rows: 12
+
+drop table pull_request;
+> ok
+
+drop table application;
+> ok
+
 --- special grammar and test cases ---------------------------------------------------------------------------------------------
 create table test(id int) as select 1;
 > ok
